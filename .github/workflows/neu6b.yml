@@ -1,0 +1,52 @@
+name: U-Boot CI runner for NCM6B
+
+on:
+  push:
+    branches:
+      - ncm6b
+
+jobs:
+  build:
+    permissions: write-all
+    name: u-boot ncm6b runner
+    runs-on: ubuntu-latest
+
+    env:
+      BASE_DIR: u-boot-ncm6b
+      UBOOT_REPO: https://github.com/openaia/u-boot.git
+      RKBIN_REPO: https://github.com/rockchip-linux/rkbin.git
+      RKBIN_DIR: rkbin/bin/rk35
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt install -y gcc make gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+          pip3 install pyelftools
+
+      - name: Clone U-boot repo
+        run: |
+          mkdir -p $BASE_DIR && cd $BASE_DIR
+          git clone $UBOOT_REPO -b ncm6b
+          git clone $RKBIN_REPO
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          cd u-boot
+          export BL31=../$RKBIN_DIR/rk3588_bl31_v1.40.elf
+          export ROCKCHIP_TPL=../$RKBIN_DIR/rk3588_ddr_lp4_2112MHz_lp5_2736MHz_v1.12.bin
+          make neu6b-io-rk3588_defconfig
+          make -j12
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "ncm6b"
+          files: |
+            $BASE_DIR/u-boot/idbloader.img
+            $BASE_DIR/u-boot/u-boot.itb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
