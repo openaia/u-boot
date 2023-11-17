@@ -1,0 +1,52 @@
+name: U-Boot CI runner for 1TOPS
+
+on:
+  push:
+    branches:
+      - ncm6b
+
+jobs:
+  build:
+    permissions: write-all
+    name: u-boot 1tops runner
+    runs-on: ubuntu-latest
+
+    env:
+      UBOOT_REPO: https://github.com/openaia/u-boot.git
+      RKBIN_REPO: https://github.com/rockchip-linux/rkbin.git
+      RKBIN_DIR: rkbin/bin/rk35
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v1
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt install -y gcc make gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+          pip3 install pyelftools
+
+      - name: Clone U-boot repo
+        run: |
+          mkdir -p u-boot-ncm6b && cd u-boot-ncm6b
+          git clone $UBOOT_REPO -b ncm6b
+          git clone $RKBIN_REPO
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          cd u-boot
+          export BL31=../$RKBIN_DIR/rk3568_bl31_v1.43.elf
+          export ROCKCHIP_TPL=../$RKBIN_DIR/rk3568_ddr_1560MHz_v1.18.bin
+          make rock-3a-rk3568_defconfig
+          make -j12
+
+      - name: Upload output artifacts
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "v2023.11-1TOPS"
+          files: |
+            u-boot-ncm6b/u-boot/idbloader.img
+            u-boot-ncm6b/u-boot/u-boot.itb
+            u-boot-ncm6b/u-boot/u-boot-rockchip.bin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
